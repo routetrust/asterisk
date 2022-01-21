@@ -1,4 +1,4 @@
-From f9592251b74979b1670994111162e9a604dcaaa5 Mon Sep 17 00:00:00 2001
+From b7ecff22e77887626fd8e8608c4dd73bc7b7366f Mon Sep 17 00:00:00 2001
 From: George Joseph <gjoseph@sangoma.com>
 Date: Tue, 18 Jan 2022 06:14:31 -0700
 Subject: [PATCH] Additional multipart improvements
@@ -9,10 +9,10 @@ pjsip_multipart_find_part_by_header_str()
 pjsip_multipart_find_part_by_cid_str()
 pjsip_multipart_find_part_by_cid_uri()
 ---
- pjsip/include/pjsip/sip_multipart.h |  83 +++++++++++
- pjsip/src/pjsip/sip_multipart.c     | 207 ++++++++++++++++++++++++++++
- pjsip/src/test/multipart_test.c     | 192 +++++++++++++++++++++++++-
- 3 files changed, 481 insertions(+), 1 deletion(-)
+ pjsip/include/pjsip/sip_multipart.h |  83 ++++++++++
+ pjsip/src/pjsip/sip_multipart.c     | 223 +++++++++++++++++++++++++++
+ pjsip/src/test/multipart_test.c     | 225 +++++++++++++++++++++++++++-
+ 3 files changed, 530 insertions(+), 1 deletion(-)
 
 diff --git a/pjsip/include/pjsip/sip_multipart.h b/pjsip/include/pjsip/sip_multipart.h
 index 1c05767c5..c6b82b0b4 100644
@@ -109,7 +109,7 @@ index 1c05767c5..c6b82b0b4 100644
   * Parse multipart message.
   *
 diff --git a/pjsip/src/pjsip/sip_multipart.c b/pjsip/src/pjsip/sip_multipart.c
-index e7d722d2e..536a7dc7d 100644
+index e7d722d2e..9d8be55b0 100644
 --- a/pjsip/src/pjsip/sip_multipart.c
 +++ b/pjsip/src/pjsip/sip_multipart.c
 @@ -19,6 +19,7 @@
@@ -120,7 +120,7 @@ index e7d722d2e..536a7dc7d 100644
  #include <pj/assert.h>
  #include <pj/ctype.h>
  #include <pj/errno.h>
-@@ -416,6 +417,204 @@ pjsip_multipart_find_part( const pjsip_msg_body *mp,
+@@ -416,6 +417,220 @@ pjsip_multipart_find_part( const pjsip_msg_body *mp,
      return NULL;
  }
  
@@ -214,7 +214,6 @@ index e7d722d2e..536a7dc7d 100644
 +    struct multipart_data *m_data;
 +    pjsip_hdr *search_hdr = search_for;
 +    pj_str_t search_buf;
-+    pj_str_t search_value;
 +
 +    /* Must specify mandatory params */
 +    PJ_ASSERT_RETURN(mp && search_hdr, NULL);
@@ -236,10 +235,11 @@ index e7d722d2e..536a7dc7d 100644
 +     * Set the header value to start after the header name plus the ":", then
 +     * strip leading and trailing whitespace.
 +     */
-+    search_value.ptr = search_buf.ptr + search_hdr->name.slen + 1;
-+    pj_strtrim(&search_value);
++    search_buf.ptr += (search_hdr->name.slen + 1);
++    search_buf.slen -= (search_hdr->name.slen + 1);
++    pj_strtrim(&search_buf);
 +
-+    return pjsip_multipart_find_part_by_header_str(pool, mp, &search_hdr->name, &search_value, start);
++    return pjsip_multipart_find_part_by_header_str(pool, mp, &search_hdr->name, &search_buf, start);
 +}
 +
 +/*
@@ -291,18 +291,34 @@ index e7d722d2e..536a7dc7d 100644
 +				 const pjsip_msg_body *mp,
 +				 pj_str_t *cid)
 +{
++    struct multipart_data *m_data;
++    pjsip_multipart_part *part;
++    pjsip_generic_string_hdr *found_hdr;
++    pj_str_t found_hdr_value;
 +    static pj_str_t hdr_name = { "Content-ID", 10};
 +    pj_str_t hdr_value;
 +
 +    PJ_ASSERT_RETURN(pool && mp && cid && (pj_strlen(cid) > 0), NULL);
 +
 +    hdr_value = cid_uri_to_hdr_value(pool, cid);
-+
 +    if (pj_strlen(&hdr_value) == 0) {
 +	return NULL;
 +    }
 +
-+    return pjsip_multipart_find_part_by_header_str(pool, mp, &hdr_name, &hdr_value, NULL);
++    m_data = (struct multipart_data*)mp->data;
++    part = m_data->part_head.next;
++
++    while (part != &m_data->part_head) {
++	found_hdr = NULL;
++	while ((found_hdr = pjsip_hdr_find_by_name(&part->hdr, &hdr_name,
++	    (found_hdr ? found_hdr->next : NULL))) != NULL) {
++	    if (pj_strcmp(&hdr_value, &found_hdr->hvalue) == 0) {
++		return part;
++	    }
++	}
++	part = part->next;
++    }
++    return NULL;
 +}
 +
 +PJ_DEF(pjsip_multipart_part*)
@@ -325,7 +341,7 @@ index e7d722d2e..536a7dc7d 100644
  /* Parse a multipart part. "pct" is parent content-type  */
  static pjsip_multipart_part *parse_multipart_part(pj_pool_t *pool,
  						  char *start,
-@@ -584,6 +783,7 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
+@@ -584,6 +799,7 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
  		(int)boundary.slen, boundary.ptr));
      }
  
@@ -333,7 +349,7 @@ index e7d722d2e..536a7dc7d 100644
      /* Build the delimiter:
       *   delimiter = "--" boundary
       */
-@@ -630,6 +830,8 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
+@@ -630,6 +846,8 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
  	if (*curptr=='\r') ++curptr;
  	if (*curptr!='\n') {
  	    /* Expecting a newline here */
@@ -342,7 +358,7 @@ index e7d722d2e..536a7dc7d 100644
  	    return NULL;
  	}
  	++curptr;
-@@ -645,6 +847,7 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
+@@ -645,6 +863,7 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
  	    curptr = pj_strstr(&subbody, &delim);
  	    if (!curptr) {
  		/* We're really expecting end delimiter to be found. */
@@ -350,7 +366,7 @@ index e7d722d2e..536a7dc7d 100644
  		return NULL;
  	    }
  	}
-@@ -670,9 +873,13 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
+@@ -670,9 +889,13 @@ PJ_DEF(pjsip_msg_body*) pjsip_multipart_parse(pj_pool_t *pool,
  	part = parse_multipart_part(pool, start_body, end_body - start_body,
  				    ctype);
  	if (part) {
@@ -365,7 +381,7 @@ index e7d722d2e..536a7dc7d 100644
      return body;
  }
 diff --git a/pjsip/src/test/multipart_test.c b/pjsip/src/test/multipart_test.c
-index 4f16e68bf..b2d8546f8 100644
+index 4f16e68bf..97267a290 100644
 --- a/pjsip/src/test/multipart_test.c
 +++ b/pjsip/src/test/multipart_test.c
 @@ -28,6 +28,7 @@
@@ -395,7 +411,7 @@ index 4f16e68bf..b2d8546f8 100644
 +		"\r\n"
 +		"has header1\r\n"
 +		"--12345 \t\r\n"
-+		"Content-Type: text/plain\r\n"
++		"Content-Type: application/pidf+xml\r\n"
 +		"Content-ID: <my header2@example.org>\r\n"
 +		"Content-ID: <my\xffheader2@example.org>\r\n"
 +		"Content-Length: 13\r\n"
@@ -418,10 +434,33 @@ index 4f16e68bf..b2d8546f8 100644
  };
  
  static void init_media_type(pjsip_media_type *mt,
-@@ -87,6 +122,159 @@ static void init_media_type(pjsip_media_type *mt,
+@@ -87,6 +122,192 @@ static void init_media_type(pjsip_media_type *mt,
      }
  }
  
++static int verify_hdr(pj_pool_t *pool, pjsip_msg_body *multipart_body,
++    void *hdr, char *part_body)
++{
++    pjsip_media_type mt;
++    pjsip_multipart_part *part;
++    pj_str_t the_body;
++
++
++    part = pjsip_multipart_find_part_by_header(pool, multipart_body, hdr, NULL);
++    if (!part) {
++	return -1;
++    }
++
++    the_body.ptr = (char*)part->body->data;
++    the_body.slen = part->body->len;
++
++    if (pj_strcmp2(&the_body, part_body) != 0) {
++	return -2;
++    }
++
++    return 0;
++}
++
 +static int verify_cid_str(pj_pool_t *pool, pjsip_msg_body *multipart_body,
 +    pj_str_t cid_url, char *part_body)
 +{
@@ -431,14 +470,14 @@ index 4f16e68bf..b2d8546f8 100644
 +
 +    part = pjsip_multipart_find_part_by_cid_str(pool, multipart_body, &cid_url);
 +    if (!part) {
-+	return -1;
++	return -3;
 +    }
 +
 +    the_body.ptr = (char*)part->body->data;
 +    the_body.slen = part->body->len;
 +
 +    if (pj_strcmp2(&the_body, part_body) != 0) {
-+    	return -2;
++	return -4;
 +    }
 +
 +    return 0;
@@ -453,14 +492,14 @@ index 4f16e68bf..b2d8546f8 100644
 +
 +    part = pjsip_multipart_find_part_by_cid_uri(pool, multipart_body, cid_uri);
 +    if (!part) {
-+	return -1;
++	return -5;
 +    }
 +
 +    the_body.ptr = (char*)part->body->data;
 +    the_body.slen = part->body->len;
 +
 +    if (pj_strcmp2(&the_body, part_body) != 0) {
-+    	return -2;
++	return -6;
 +    }
 +
 +    return 0;
@@ -471,7 +510,17 @@ index 4f16e68bf..b2d8546f8 100644
 +    int rc = 0;
 +    int rcbase = 300;
 +    pjsip_other_uri *cid_uri;
++    pjsip_ctype_hdr *ctype_hdr = pjsip_ctype_hdr_create(pool);
 +
++    ctype_hdr->media.type = pj_str("application");
++    ctype_hdr->media.subtype = pj_str("pidf+xml");
++
++    rc = verify_hdr(pool, body, ctype_hdr, "has header2");
++    if (rc) {
++	return (rc - rcbase);
++    }
++
++    rcbase += 10;
 +    rc = verify_cid_str(pool, body, pj_str("cid:header1@example.org"), "has header1");
 +    if (rc) {
 +	return (rc - rcbase);
@@ -578,7 +627,7 @@ index 4f16e68bf..b2d8546f8 100644
  static int verify_part(pjsip_multipart_part *part,
  		       char *h_content_type,
  		       char *h_content_subtype,
-@@ -236,8 +424,10 @@ static int parse_test(void)
+@@ -236,8 +457,10 @@ static int parse_test(void)
  
  	pj_strdup2_with_null(pool, &str, p_tests[i].msg);
  	body = pjsip_multipart_parse(pool, str.ptr, str.slen, &ctype, 0);
