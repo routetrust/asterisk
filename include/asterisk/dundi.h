@@ -59,8 +59,6 @@ enum {
 	DUNDI_PROTO_SIP  = 2,
 	/*! ITU H.323 */
 	DUNDI_PROTO_H323 = 3,
-	/*! PJSIP */
-	DUNDI_PROTO_PJSIP = 4,
 };
 
 enum {

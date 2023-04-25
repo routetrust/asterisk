@@ -80,7 +80,6 @@ static struct ast_json *custom_fields_to_params(const struct ast_variable *varia
  * receiving a response the returned result is guaranteed to be pass/fail based upon
  * a response handler's result.
  *
- * \param aeap Pointer to an Asterisk external application object
  * \param name The name of the request to send
  * \param json The core json request data
  * \param data Optional user data to associate with request/response
@@ -88,7 +87,7 @@ static struct ast_json *custom_fields_to_params(const struct ast_variable *varia
  * \returns 0 on success, -1 on error
  */
 static int speech_aeap_send_request(struct ast_aeap *aeap, const char *name,
-	struct ast_json *json, void *data)
+	struct ast_json *json, void *obj)
 {
 	/*
 	 * Wait for a response. Also since we're blocking,
@@ -97,7 +96,7 @@ static int speech_aeap_send_request(struct ast_aeap *aeap, const char *name,
 	struct ast_aeap_tsx_params tsx_params = {
 		.timeout = 1000,
 		.wait = 1,
-		.obj = data,
+		.obj = obj,
 	};
 
 	/* "steals" the json ref */
@@ -117,9 +116,7 @@ static int speech_aeap_send_request(struct ast_aeap *aeap, const char *name,
  *
  * Basic structure of the JSON message to send:
  *
- \verbatim
- { param: [<param>, ...] }
- \endverbatim
+ *   { param: [<param>, ...] }
  *
  * \param speech The speech engine
  * \param param The name of the parameter to retrieve
@@ -149,9 +146,7 @@ struct speech_param {
  *
  * Basic structure of the JSON message to send:
  *
- \verbatim
- { params: { <name> : <value> }  }
- \endverbatim
+ *   { params: { <name> : <value> }  }
  *
  * \param speech The speech engine
  * \param name The name of the parameter to set
@@ -243,15 +238,13 @@ static int handle_results(struct ast_aeap *aeap, struct ast_json_iter *iter,
  *
  * Basic structure of the expected JSON message to received:
  *
- \verbatim
- {
-   response: "get"
-   "params" : { <name>: <value> | [ <results> ] }
- }
- \endverbatim
+ *   {
+ *     response: "get"
+ *     "params" : { <name>: <value> | [ <results> ] }
+ *   }
  *
- * \param aeap Pointer to an Asterisk external application object
- * \param message The received message
+ * \param speech The speech engine
+ * \param param The name of the parameter to retrieve
  * \param data User data passed to the response handler
  *
  * \returns 0 on success, -1 on error
@@ -358,19 +351,17 @@ static struct ast_aeap_params speech_aeap_params = {
  *
  * Basic structure of the JSON message to send:
  *
- \verbatim
- {
-   "request": "setup"
-   "codecs": [
-       {
-           "name": <name>,
-           "attributes": { <name>: <value>, ..., }
-       },
-       ...,
-   ],
-   "params": { <name>: <value>, ..., }
- }
- \endverbatim
+ *   {
+ *     "request": "setup"
+ *     "codecs": [
+ *         {
+ *             "name": <name>,
+ *             "attributes": { <name>: <value>, ..., }
+ *         },
+ *         ...,
+ *     ],
+ *     "params": { <name>: <value>, ..., }
+ *   }
  *
  * \param speech The speech engine
  * \param format The format codec to use

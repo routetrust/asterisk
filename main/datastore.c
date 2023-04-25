@@ -69,10 +69,6 @@ int ast_datastore_free(struct ast_datastore *datastore)
 {
 	int res = 0;
 
-	if (!datastore) {
-		return 0;
-	}
-
 	/* Using the destroy function (if present) destroy the data */
 	if (datastore->info->destroy != NULL && datastore->data != NULL) {
 		datastore->info->destroy(datastore->data);

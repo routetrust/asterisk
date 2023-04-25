@@ -570,7 +570,6 @@ static AST_LIST_HEAD_STATIC(vmstates, vmstate);
 #define VM_MOVEHEARD     (1 << 16)  /*!< Move a "heard" message to Old after listening to it */
 #define VM_MESSAGEWRAP   (1 << 17)  /*!< Wrap around from the last message to the first, and vice-versa */
 #define VM_FWDURGAUTO    (1 << 18)  /*!< Autoset of Urgent flag on forwarded Urgent messages set globally */
-#define VM_EMAIL_EXT_RECS (1 << 19)  /*!< Send voicemail emails when an external recording is added to a mailbox */
 #define ERROR_LOCK_PATH  -100
 #define ERROR_MAX_MSGS   -101
 #define OPERATOR_EXIT     300
@@ -1259,8 +1258,6 @@ static void apply_option(struct ast_vm_user *vmu, const char *var, const char *v
 		ast_set2_flag(vmu, ast_true(value), VM_ATTACH);
 	} else if (!strcasecmp(var, "attachfmt")) {
 		ast_copy_string(vmu->attachfmt, value, sizeof(vmu->attachfmt));
-	} else if (!strcasecmp(var, "attachextrecs")) {
-		ast_set2_flag(vmu, ast_true(value), VM_EMAIL_EXT_RECS);
 	} else if (!strcasecmp(var, "serveremail")) {
 		ast_copy_string(vmu->serveremail, value, sizeof(vmu->serveremail));
 	} else if (!strcasecmp(var, "fromstring")) {
@@ -4484,16 +4481,15 @@ static void rename_file(char *sdir, int smsg, char *mailboxuser, char *mailboxco
  */
 static int remove_file(char *dir, int msgnum)
 {
-	char fn[PATH_MAX] = "";
-	char full_fn[PATH_MAX + 4]; /* Plus .txt */
+	char fn[PATH_MAX];
+	char full_fn[PATH_MAX];
 	char msgnums[80];
 
 	if (msgnum > -1) {
 		snprintf(msgnums, sizeof(msgnums), "%d", msgnum);
 		make_file(fn, sizeof(fn), dir, msgnum);
-	} else {
+	} else
 		ast_copy_string(fn, dir, sizeof(fn));
-	}
 	ast_filedelete(fn, NULL);
 	snprintf(full_fn, sizeof(full_fn), "%s.txt", fn);
 	unlink(full_fn);
@@ -6422,12 +6418,6 @@ static int msg_create_from_file(struct ast_vm_recording_data *recdata)
 	 * to do both with one line and is also safe to use with file storage mode. Also, if we are using ODBC, now is a good
 	 * time to create the voicemail database entry. */
 	if (ast_fileexists(destination, NULL, NULL) > 0) {
-		struct ast_channel *chan = NULL;
-		char fmt[80];
-		char clid[80];
-		char cidnum[80], cidname[80];
-		int send_email;
-
 		if (ast_check_realtime("voicemail_data")) {
 			get_date(date, sizeof(date));
 			ast_store_realtime("voicemail_data",
@@ -6447,27 +6437,7 @@ static int msg_create_from_file(struct ast_vm_recording_data *recdata)
 		}
 
 		STORE(dir, recipient->mailbox, recipient->context, msgnum, NULL, recipient, fmt, 0, vms, "", msg_id);
-
-		send_email = ast_test_flag(recipient, VM_EMAIL_EXT_RECS);
-
-		if (send_email) {
-			/* Send an email if possible, fall back to just notifications if not. */
-			ast_copy_string(fmt, recdata->recording_ext, sizeof(fmt));
-			ast_copy_string(clid, recdata->call_callerid, sizeof(clid));
-			ast_callerid_split(clid, cidname, sizeof(cidname), cidnum, sizeof(cidnum));
-
-			/* recdata->call_callerchan itself no longer exists, so we can't use the real channel. Use a dummy one. */
-			chan = ast_dummy_channel_alloc();
-		}
-		if (chan) {
-			notify_new_message(chan, recipient, NULL, msgnum, duration, fmt, cidnum, cidname, "");
-			ast_channel_unref(chan);
-		} else {
-			if (send_email) { /* We tried and failed. */
-				ast_log(LOG_WARNING, "Failed to allocate dummy channel, email will not be sent\n");
-			}
-			notify_new_state(recipient);
-		}
+		notify_new_state(recipient);
 	}
 
 	free_user(recipient);
@@ -11227,14 +11197,12 @@ static int vm_authenticate(struct ast_channel *chan, char *mailbox, int mailbox_
 			password[0] = '\0';
 		} else {
 			if (ast_streamfile(chan, vm_password, ast_channel_language(chan))) {
-				if (!ast_check_hangup(chan)) {
-					ast_log(AST_LOG_WARNING, "Unable to stream password file\n");
-				}
+				ast_log(AST_LOG_WARNING, "Unable to stream password file\n");
 				free_user(vmu);
 				return -1;
 			}
 			if (ast_readstring(chan, password, sizeof(password) - 1, 2000, 10000, "#") < 0) {
-				ast_log(AST_LOG_NOTICE, "Unable to read password\n");
+				ast_log(AST_LOG_WARNING, "Unable to read password\n");
 				free_user(vmu);
 				return -1;
 			} else if (password[0] == '*') {

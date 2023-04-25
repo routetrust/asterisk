@@ -63,13 +63,11 @@ static int expect_null;
 static int validate_data(const char *id, struct foo_data *foo)
 {
 	size_t num;
-	uintmax_t tmp;
 
-	if (ast_str_to_umax(id, &tmp)) {
+	if (ast_str_to_umax(id, &num)) {
 		ast_log(LOG_ERROR, "Unable to convert the state's id '%s' to numeric\n", id);
 		return -1;
 	}
-	num = (size_t) tmp;
 
 	running_total += num;
 
@@ -249,7 +247,6 @@ static struct stasis_message *create_foo_type_message(const char *id)
 {
 	struct stasis_message *msg;
 	struct foo_data *foo;
-	uintmax_t tmp;
 
 	foo = ao2_alloc(sizeof(*foo), NULL);
 	if (!foo) {
@@ -257,12 +254,11 @@ static struct stasis_message *create_foo_type_message(const char *id)
 		return NULL;
 	}
 
-	if (ast_str_to_umax(id, &tmp)) {
+	if (ast_str_to_umax(id, &foo->bar)) {
 		ast_log(LOG_ERROR, "Unable to convert the state's id '%s' to numeric\n", id);
 		ao2_ref(foo, -1);
 		return NULL;
 	}
-	foo->bar = (size_t) tmp;
 
 	msg = stasis_message_create_full(foo_type(), foo, NULL);
 	if (!msg) {

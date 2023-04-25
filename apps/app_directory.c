@@ -103,14 +103,6 @@
 						receiver to their ear while entering DTMF.</para>
 						<argument name="n" required="true" />
 					</option>
-					<option name="c">
-						<para>Load the specified config file instead of voicemail.conf</para>
-						<argument name="filename" required="true" />
-					</option>
-					<option name="s">
-						<para>Skip calling the extension, instead set it in the <variable>DIRECTORY_EXTEN</variable>
-						channel variable.</para>
-					</option>
 				</optionlist>
 				<note><para>Only one of the <replaceable>f</replaceable>, <replaceable>l</replaceable>, or <replaceable>b</replaceable>
 				options may be specified. <emphasis>If more than one is specified</emphasis>, then Directory will act as
@@ -122,12 +114,12 @@
 		<description>
 			<para>This application will present the calling channel with a directory of extensions from which they can search
 			by name. The list of names and corresponding extensions is retrieved from the
-			voicemail configuration file, <filename>voicemail.conf</filename>, or from the specified filename.</para>
+			voicemail configuration file, <filename>voicemail.conf</filename>.</para>
 			<para>This application will immediately exit if one of the following DTMF digits are
 			received and the extension to jump to exists:</para>
 			<para><literal>0</literal> - Jump to the 'o' extension, if it exists.</para>
 			<para><literal>*</literal> - Jump to the 'a' extension, if it exists.</para>
-			<para>This application will set the following channel variables before completion:</para>
+			<para>This application will set the following channel variable before completion:</para>
 			<variablelist>
 				<variable name="DIRECTORY_RESULT">
 					<para>Reason Directory application exited.</para>
@@ -138,10 +130,6 @@
 					<value name="SELECTED">User selected a user to call from the directory</value>
 					<value name="USEREXIT">User exited with '#' during selection</value>
 					<value name="FAILED">The application failed</value>
-				</variable>
-				<variable name="DIRECTORY_EXTEN">
-					<para>If the skip calling option is set this will be set to the selected extension
-					provided one is selected.</para>
 				</variable>
 			</variablelist>
 		</description>
@@ -165,8 +153,6 @@ enum {
 	OPT_PAUSE =           (1 << 5),
 	OPT_NOANSWER =        (1 << 6),
 	OPT_ALIAS =           (1 << 7),
-	OPT_CONFIG_FILE =     (1 << 8),
-	OPT_SKIP =            (1 << 9),
 };
 
 enum {
@@ -174,9 +160,8 @@ enum {
 	OPT_ARG_LASTNAME =    1,
 	OPT_ARG_EITHER =      2,
 	OPT_ARG_PAUSE =       3,
-	OPT_ARG_FILENAME =    4,
 	/* This *must* be the last value in this enum! */
-	OPT_ARG_ARRAY_SIZE =  5,
+	OPT_ARG_ARRAY_SIZE =  4,
 };
 
 struct directory_item {
@@ -198,8 +183,6 @@ AST_APP_OPTIONS(directory_app_options, {
 	AST_APP_OPTION('m', OPT_SELECTFROMMENU),
 	AST_APP_OPTION('n', OPT_NOANSWER),
 	AST_APP_OPTION('a', OPT_ALIAS),
-	AST_APP_OPTION_ARG('c', OPT_CONFIG_FILE, OPT_ARG_FILENAME),
-	AST_APP_OPTION('s', OPT_SKIP),
 });
 
 static int compare(const char *text, const char *template)
@@ -335,9 +318,6 @@ static int select_entry(struct ast_channel *chan, const char *dialcontext, const
 	if (ast_test_flag(flags, OPT_FROMVOICEMAIL)) {
 		/* We still want to set the exten though */
 		ast_channel_exten_set(chan, item->exten);
-	} else if (ast_test_flag(flags, OPT_SKIP)) {
-		/* Skip calling the extension, only set it in the channel variable. */
-		pbx_builtin_setvar_helper(chan, "DIRECTORY_EXTEN", item->exten);
 	} else if (ast_goto_if_exists(chan, S_OR(dialcontext, item->context), item->exten, 1)) {
 		ast_log(LOG_WARNING,
 			"Can't find extension '%s' in context '%s'.  "
@@ -478,7 +458,7 @@ static int select_item_menu(struct ast_channel *chan, struct directory_item **it
 
 AST_THREADSTORAGE(commonbuf);
 
-static struct ast_config *realtime_directory(char *context, const char *filename)
+static struct ast_config *realtime_directory(char *context)
 {
 	struct ast_config *cfg;
 	struct ast_config *rtdata = NULL;
@@ -495,14 +475,14 @@ static struct ast_config *realtime_directory(char *context, const char *filename
 	}
 
 	/* Load flat file config. */
-	cfg = ast_config_load(filename, config_flags);
+	cfg = ast_config_load(VOICEMAIL_CONFIG, config_flags);
 
 	if (!cfg) {
 		/* Loading config failed. */
 		ast_log(LOG_WARNING, "Loading config failed.\n");
 		return NULL;
 	} else if (cfg == CONFIG_STATUS_FILEINVALID) {
-		ast_log(LOG_ERROR, "Config file %s is in an invalid format.  Aborting.\n", filename);
+		ast_log(LOG_ERROR, "Config file %s is in an invalid format.  Aborting.\n", VOICEMAIL_CONFIG);
 		return NULL;
 	}
 
@@ -887,9 +867,7 @@ static int directory_exec(struct ast_channel *chan, const char *data)
 	if (args.options && ast_app_parse_options(directory_app_options, &flags, opts, args.options))
 		return -1;
 
-	cfg = realtime_directory(args.vmcontext, S_OR(opts[OPT_ARG_FILENAME], VOICEMAIL_CONFIG));
-
-	if (!cfg) {
+	if (!(cfg = realtime_directory(args.vmcontext))) {
 		ast_log(LOG_ERROR, "Unable to read the configuration data!\n");
 		return -1;
 	}

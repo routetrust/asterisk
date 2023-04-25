@@ -69,10 +69,10 @@
   <!ATTLIST configInfo name CDATA #REQUIRED>
   <!ATTLIST configInfo language CDATA #REQUIRED>
 
-  <!ELEMENT configFile (configObject|xi:include)+>
+  <!ELEMENT configFile (configObject+)>
   <!ATTLIST configFile name CDATA #REQUIRED>
 
-  <!ELEMENT configObject (synopsis?|description?|syntax?|see-also?|(configOption|xi:include))*>
+  <!ELEMENT configObject (synopsis?|description?|syntax?|see-also?|configOption)*>
   <!ATTLIST configObject name CDATA #REQUIRED>
 
   <!ELEMENT configOption (synopsis,description?,syntax?,see-also?)*>

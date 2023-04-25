@@ -241,6 +241,7 @@ struct ast_aeap_message *ast_aeap_message_create_response(const struct ast_aeap_
  * \param name The name of the message
  * \param id Optional id
  * \param error_msg Error message to set
+ * \param params Other optional parameter(s) to possibly use
  *
  * \returns An ao2 reference counted AEAP response object, or NULL on error
  */
@@ -314,7 +315,7 @@ const char *ast_aeap_message_name(const struct ast_aeap_message *message);
  * \note Case insensitive
  *
  * \param message A message object
- * \param name The name to check against
+ * \param message name The name to check against
  *
  * \returns True if matched, false otherwise
  */

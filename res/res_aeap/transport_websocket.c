@@ -103,12 +103,7 @@ static intmax_t websocket_read(struct aeap_transport *self, void *buf, intmax_t 
 	 * unlock it prior to waiting.
 	 */
 	ast_mutex_unlock(&transport->base.read_lock);
-	while (ast_websocket_wait_for_input(transport->ws, -1) <= 0) {
-		/* If this was poll getting interrupted just go back to waiting */
-		if (errno == EINTR || errno == EAGAIN) {
-			continue;
-		}
-
+	if (ast_websocket_wait_for_input(transport->ws, -1) <= 0) {
 		ast_mutex_lock(&transport->base.read_lock);
 		log_error(self, "poll failure: %s", strerror(errno));
 		/* Ensure this transport is in a disconnected state */

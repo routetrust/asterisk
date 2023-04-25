@@ -68,8 +68,9 @@ static int xmldoc_parse_specialtags(struct ast_xml_node *fixnode, const char *ta
 /*!
  * \brief Container of documentation trees
  *
- * \note A RWLIST is a sufficient container type to use, provided
- *       the list lock is always held while there are references to the list.
+ * \note A RWLIST is a sufficient container type to use here for now.
+ *       However, some changes will need to be made to implement ref counting
+ *       if reload support is added in the future.
  */
 static AST_RWLIST_HEAD_STATIC(xmldoc_tree, documentation_tree);
 
@@ -429,8 +430,6 @@ static int xmldoc_attribute_match(struct ast_xml_node *node, const char *attr, c
  *
  * \retval NULL on error.
  * \retval A node of type ast_xml_node.
- *
- * \note Must be called with a RDLOCK held on xmldoc_tree
  */
 static struct ast_xml_node *xmldoc_get_node(const char *type, const char *name, const char *module, const char *language)
 {
@@ -439,6 +438,7 @@ static struct ast_xml_node *xmldoc_get_node(const char *type, const char *name, 
 	struct ast_xml_node *lang_match = NULL;
 	struct documentation_tree *doctree;
 
+	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	AST_LIST_TRAVERSE(&xmldoc_tree, doctree, entry) {
 		/* the core xml documents have priority over thirdparty document. */
 		node = ast_xml_get_root(doctree->doc);
@@ -497,6 +497,7 @@ static struct ast_xml_node *xmldoc_get_node(const char *type, const char *name, 
 			break;
 		}
 	}
+	AST_RWLIST_UNLOCK(&xmldoc_tree);
 
 	return node;
 }
@@ -1252,18 +1253,13 @@ static char *_ast_xmldoc_build_syntax(struct ast_xml_node *root_node, const char
 char *ast_xmldoc_build_syntax(const char *type, const char *name, const char *module)
 {
 	struct ast_xml_node *node;
-	char *syntax;
 
-	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	node = xmldoc_get_node(type, name, module, documentation_language);
 	if (!node) {
-		AST_RWLIST_UNLOCK(&xmldoc_tree);
 		return NULL;
 	}
 
-	syntax = _ast_xmldoc_build_syntax(node, type, name);
-	AST_RWLIST_UNLOCK(&xmldoc_tree);
-	return syntax;
+	return _ast_xmldoc_build_syntax(node, type, name);
 }
 
 /*!
@@ -1709,15 +1705,12 @@ char *ast_xmldoc_build_seealso(const char *type, const char *name, const char *m
 	}
 
 	/* get the application/function root node. */
-	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	node = xmldoc_get_node(type, name, module, documentation_language);
 	if (!node || !ast_xml_node_get_children(node)) {
-		AST_RWLIST_UNLOCK(&xmldoc_tree);
 		return NULL;
 	}
 
 	output = _ast_xmldoc_build_seealso(node);
-	AST_RWLIST_UNLOCK(&xmldoc_tree);
 
 	return output;
 }
@@ -2084,23 +2077,18 @@ static char *_ast_xmldoc_build_arguments(struct ast_xml_node *node)
 char *ast_xmldoc_build_arguments(const char *type, const char *name, const char *module)
 {
 	struct ast_xml_node *node;
-	char *arguments;
 
 	if (ast_strlen_zero(type) || ast_strlen_zero(name)) {
 		return NULL;
 	}
 
-	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	node = xmldoc_get_node(type, name, module, documentation_language);
 
 	if (!node || !ast_xml_node_get_children(node)) {
-		AST_RWLIST_UNLOCK(&xmldoc_tree);
 		return NULL;
 	}
 
-	arguments = _ast_xmldoc_build_arguments(node);
-	AST_RWLIST_UNLOCK(&xmldoc_tree);
-	return arguments;
+	return _ast_xmldoc_build_arguments(node);
 }
 
 /*!
@@ -2204,27 +2192,20 @@ static char *_xmldoc_build_field(struct ast_xml_node *node, const char *var, int
 static char *xmldoc_build_field(const char *type, const char *name, const char *module, const char *var, int raw)
 {
 	struct ast_xml_node *node;
-	char *field;
 
 	if (ast_strlen_zero(type) || ast_strlen_zero(name)) {
 		ast_log(LOG_ERROR, "Tried to look in XML tree with faulty values.\n");
 		return NULL;
 	}
 
-	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	node = xmldoc_get_node(type, name, module, documentation_language);
 
 	if (!node) {
-		AST_RWLIST_UNLOCK(&xmldoc_tree);
-		ast_log(LOG_WARNING, "Couldn't find %s %s in XML documentation"
-			" If this module was recently built, run 'xmldoc reload' to refresh documentation\n",
-			type, name);
+		ast_log(LOG_WARNING, "Couldn't find %s %s in XML documentation\n", type, name);
 		return NULL;
 	}
 
-	field = _xmldoc_build_field(node, var, raw);
-	AST_RWLIST_UNLOCK(&xmldoc_tree);
-	return field;
+	return _xmldoc_build_field(node, var, raw);
 }
 
 /*!
@@ -2484,23 +2465,18 @@ static struct ast_xml_doc_item *xmldoc_build_list_responses(struct ast_xml_node 
 struct ast_xml_doc_item *ast_xmldoc_build_list_responses(const char *type, const char *name, const char *module)
 {
 	struct ast_xml_node *node;
-	struct ast_xml_doc_item *responses;
 
 	if (ast_strlen_zero(type) || ast_strlen_zero(name)) {
 		return NULL;
 	}
 
-	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	node = xmldoc_get_node(type, name, module, documentation_language);
 
 	if (!node || !ast_xml_node_get_children(node)) {
-		AST_RWLIST_UNLOCK(&xmldoc_tree);
 		return NULL;
 	}
 
-	responses = xmldoc_build_list_responses(node);
-	AST_RWLIST_UNLOCK(&xmldoc_tree);
-	return responses;
+	return xmldoc_build_list_responses(node);
 }
 
 /*!
@@ -2554,23 +2530,18 @@ static struct ast_xml_doc_item *xmldoc_build_final_response(struct ast_xml_node 
 struct ast_xml_doc_item *ast_xmldoc_build_final_response(const char *type, const char *name, const char *module)
 {
 	struct ast_xml_node *node;
-	static struct ast_xml_doc_item *response;
 
 	if (ast_strlen_zero(type) || ast_strlen_zero(name)) {
 		return NULL;
 	}
 
-	AST_RWLIST_RDLOCK(&xmldoc_tree);
 	node = xmldoc_get_node(type, name, module, documentation_language);
 
 	if (!node || !ast_xml_node_get_children(node)) {
-		AST_RWLIST_UNLOCK(&xmldoc_tree);
 		return NULL;
 	}
 
-	response = xmldoc_build_final_response(node);
-	AST_RWLIST_UNLOCK(&xmldoc_tree);
-	return response;
+	return xmldoc_build_final_response(node);
 }
 
 struct ast_xml_xpath_results *__attribute__((format(printf, 1, 2))) ast_xmldoc_query(const char *fmt, ...)
@@ -2889,35 +2860,25 @@ static char *handle_dump_docs(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 static struct ast_cli_entry cli_dump_xmldocs = AST_CLI_DEFINE(handle_dump_docs, "Dump the XML docs to the specified file");
 
-static char *handle_reload_docs(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
-static struct ast_cli_entry cli_reload_xmldocs = AST_CLI_DEFINE(handle_reload_docs, "Reload the XML docs");
-
-/*! \note Must be called with xmldoc_tree locked */
-static void xmldoc_purge_documentation(void)
+/*! \brief Close and unload XML documentation. */
+static void xmldoc_unload_documentation(void)
 {
 	struct documentation_tree *doctree;
 
+	ast_cli_unregister(&cli_dump_xmldocs);
+
+	AST_RWLIST_WRLOCK(&xmldoc_tree);
 	while ((doctree = AST_RWLIST_REMOVE_HEAD(&xmldoc_tree, entry))) {
 		ast_free(doctree->filename);
 		ast_xml_close(doctree->doc);
 		ast_free(doctree);
 	}
-}
-
-/*! \brief Close and unload XML documentation. */
-static void xmldoc_unload_documentation(void)
-{
-	ast_cli_unregister(&cli_reload_xmldocs);
-	ast_cli_unregister(&cli_dump_xmldocs);
-
-	AST_RWLIST_WRLOCK(&xmldoc_tree);
-	xmldoc_purge_documentation();
 	AST_RWLIST_UNLOCK(&xmldoc_tree);
 
 	ast_xml_finish();
 }
 
-static int xmldoc_load_documentation(int first_time)
+int ast_xmldoc_load_documentation(void)
 {
 	struct ast_xml_node *root_node;
 	struct ast_xml_doc *tmpdoc;
@@ -2946,14 +2907,12 @@ static int xmldoc_load_documentation(int first_time)
 		ast_config_destroy(cfg);
 	}
 
-	if (first_time) {
-		/* initialize the XML library. */
-		ast_xml_init();
-		ast_cli_register(&cli_dump_xmldocs);
-		ast_cli_register(&cli_reload_xmldocs);
-		/* register function to be run when asterisk finish. */
-		ast_register_cleanup(xmldoc_unload_documentation);
-	}
+	/* initialize the XML library. */
+	ast_xml_init();
+
+	ast_cli_register(&cli_dump_xmldocs);
+	/* register function to be run when asterisk finish. */
+	ast_register_cleanup(xmldoc_unload_documentation);
 
 	globbuf.gl_offs = 0;    /* slots to reserve in gl_pathv */
 
@@ -2983,16 +2942,6 @@ static int xmldoc_load_documentation(int first_time)
 	ast_free(xmlpattern);
 
 	AST_RWLIST_WRLOCK(&xmldoc_tree);
-
-	if (!first_time) {
-		/* If we're reloading, purge the existing documentation.
-		 * We do this with the lock held so that if somebody
-		 * else tries to get documentation, there's no chance
-		 * of retrieiving it after we purged the old docs
-		 * but before we loaded the new ones. */
-		xmldoc_purge_documentation();
-	}
-
 	/* loop over expanded files */
 	for (i = 0; i < globbuf.gl_pathc; i++) {
 		/* check for duplicates (if we already [try to] open the same file. */
@@ -3042,33 +2991,6 @@ static int xmldoc_load_documentation(int first_time)
 	globfree(&globbuf);
 
 	return 0;
-}
-
-int ast_xmldoc_load_documentation(void)
-{
-	return xmldoc_load_documentation(1);
-}
-
-static int xmldoc_reload_documentation(void)
-{
-	return xmldoc_load_documentation(0);
-}
-
-static char *handle_reload_docs(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
-{
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "xmldoc reload";
-		e->usage =
-			"Usage: xmldoc reload\n"
-			"  Reload XML documentation\n";
-		return NULL;
-	case CLI_GENERATE:
-		return NULL;
-	}
-
-	xmldoc_reload_documentation();
-	return CLI_SUCCESS;
 }
 
 #endif /* AST_XML_DOCS */

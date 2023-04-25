@@ -42,7 +42,6 @@ static void rfc3326_use_reason_header(struct ast_sip_session *session, struct pj
 	char *cause;
 	char *text;
 	int code;
-	int cause_q850, cause_sip;
 
 	header = pjsip_msg_find_hdr_by_name(rdata->msg_info.msg, &str_reason, NULL);
 	for (; header;
@@ -50,27 +49,21 @@ static void rfc3326_use_reason_header(struct ast_sip_session *session, struct pj
 		ast_copy_pj_str(buf, &header->hvalue, sizeof(buf));
 		cause = ast_skip_blanks(buf);
 
-		cause_q850 = !strncasecmp(cause, "Q.850", 5);
-		cause_sip = !strncasecmp(cause, "SIP", 3);
-		if ((cause_q850 || cause_sip) && (cause = strstr(cause, "cause="))) {
-			/* If text is present get rid of it */
-			if ((text = strchr(cause, ';'))) {
-				*text = '\0';
-			}
-
-			if (sscanf(cause, "cause=%30d", &code) != 1) {
-				continue;
-			}
-		} else {
+		if (strncasecmp(cause, "Q.850", 5) || !(cause = strstr(cause, "cause="))) {
 			continue;
 		}
-		if (cause_q850) {
-			ast_channel_hangupcause_set(session->channel, code & 0x7f);
-			break;
-		} else if (cause_sip) {
-			ast_channel_hangupcause_set(session->channel, ast_sip_hangup_sip2cause(code));
-			break;
+
+		/* If text is present get rid of it */
+		if ((text = strstr(cause, ";"))) {
+			*text = '\0';
 		}
+
+		if (sscanf(cause, "cause=%30d", &code) != 1) {
+			continue;
+		}
+
+		ast_channel_hangupcause_set(session->channel, code & 0x7f);
+		break;
 	}
 }
 

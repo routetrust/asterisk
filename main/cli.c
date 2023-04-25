@@ -1098,11 +1098,11 @@ static char *handle_showcalls(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 static char *handle_chanlist(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
-#define FORMAT_STRING  "%-64.64s %-32.32s %-7.7s %-30.30s\n"
-#define FORMAT_STRING2 "%-64.64s %-32.32s %-7.7s %-30.30s\n"
+#define FORMAT_STRING  "%-20.20s %-20.20s %-7.7s %-30.30s\n"
+#define FORMAT_STRING2 "%-20.20s %-20.20s %-7.7s %-30.30s\n"
 #define CONCISE_FORMAT_STRING  "%s!%s!%s!%d!%s!%s!%s!%s!%s!%s!%d!%s!%s!%s\n"
-#define VERBOSE_FORMAT_STRING  "%-80.80s %-24.24s %-24.24s %4d %-7.7s %-12.12s %-25.25s %-15.15s %8.8s %-11.11s %-11.11s %-20.20s\n"
-#define VERBOSE_FORMAT_STRING2 "%-80.80s %-24.24s %-24.24s %-4.4s %-7.7s %-12.12s %-25.25s %-15.15s %8.8s %-11.11s %-11.11s %-20.20s\n"
+#define VERBOSE_FORMAT_STRING  "%-20.20s %-20.20s %-16.16s %4d %-7.7s %-12.12s %-25.25s %-15.15s %8.8s %-11.11s %-11.11s %-20.20s\n"
+#define VERBOSE_FORMAT_STRING2 "%-20.20s %-20.20s %-16.16s %-4.4s %-7.7s %-12.12s %-25.25s %-15.15s %8.8s %-11.11s %-11.11s %-20.20s\n"
 
 	struct ao2_container *channels;
 	struct ao2_iterator it_chans;
@@ -2016,43 +2016,56 @@ static char *handle_help(struct ast_cli_entry *e, int cmd, struct ast_cli_args *
 static struct ast_cli_entry cli_cli[] = {
 	AST_CLI_DEFINE(handle_commandmatchesarray, "Returns command matches array"),
 
+	AST_CLI_DEFINE(handle_nodebugchan_deprecated, "Disable debugging on channel(s)"),
+
+	AST_CLI_DEFINE(handle_chanlist, "Display information on channels"),
+
+	AST_CLI_DEFINE(handle_showcalls, "Display information on calls"),
+
+	AST_CLI_DEFINE(handle_showchan, "Display information on a specific channel"),
+
+	AST_CLI_DEFINE(handle_core_set_debug_channel, "Enable/disable debugging on a channel"),
+
 	AST_CLI_DEFINE(handle_debug_category, "Enable/disable debugging categories"),
 
 	AST_CLI_DEFINE(handle_debug, "Set level of debug chattiness"),
 	AST_CLI_DEFINE(handle_trace, "Set level of trace chattiness"),
 	AST_CLI_DEFINE(handle_verbose, "Set level of verbose chattiness"),
 
+	AST_CLI_DEFINE(group_show_channels, "Display active channels with group(s)"),
+
 	AST_CLI_DEFINE(handle_help, "Display help list, or specific help on a command"),
+
 	AST_CLI_DEFINE(handle_logger_mute, "Toggle logging output to a console"),
 
 	AST_CLI_DEFINE(handle_modlist, "List modules and info"),
+
 	AST_CLI_DEFINE(handle_load, "Load a module by name"),
+
 	AST_CLI_DEFINE(handle_reload, "Reload configuration for a module"),
+
 	AST_CLI_DEFINE(handle_core_reload, "Global reload"),
+
 	AST_CLI_DEFINE(handle_unload, "Unload a module by name"),
+
 	AST_CLI_DEFINE(handle_refresh, "Completely unloads and loads a module by name"),
 
 	AST_CLI_DEFINE(handle_showuptime, "Show uptime information"),
 
+	AST_CLI_DEFINE(handle_softhangup, "Request a hangup on a given channel"),
+
 	AST_CLI_DEFINE(handle_cli_reload_permissions, "Reload CLI permissions config"),
+
 	AST_CLI_DEFINE(handle_cli_show_permissions, "Show CLI permissions"),
+
 	AST_CLI_DEFINE(handle_cli_check_permissions, "Try a permissions config for a user"),
+
 	AST_CLI_DEFINE(handle_cli_wait_fullybooted, "Wait for Asterisk to be fully booted"),
 
 #ifdef HAVE_MALLOC_TRIM
 	AST_CLI_DEFINE(handle_cli_malloc_trim, "Return excess memory to the OS"),
 #endif
 
-};
-
-static struct ast_cli_entry cli_channels_cli[] = {
-	AST_CLI_DEFINE(handle_nodebugchan_deprecated, "Disable debugging on channel(s)"),
-	AST_CLI_DEFINE(handle_chanlist, "Display information on channels"),
-	AST_CLI_DEFINE(handle_showcalls, "Display information on calls"),
-	AST_CLI_DEFINE(handle_showchan, "Display information on a specific channel"),
-	AST_CLI_DEFINE(handle_core_set_debug_channel, "Enable/disable debugging on a channel"),
-	AST_CLI_DEFINE(group_show_channels, "Display active channels with group(s)"),
-	AST_CLI_DEFINE(handle_softhangup, "Request a hangup on a given channel"),
 };
 
 /*!
@@ -2226,23 +2239,12 @@ static void cli_shutdown(void)
 	ast_cli_unregister_multiple(cli_cli, ARRAY_LEN(cli_cli));
 }
 
-static void cli_channels_shutdown(void)
-{
-	ast_cli_unregister_multiple(cli_channels_cli, ARRAY_LEN(cli_channels_cli));
-}
-
 /*! \brief initialize the _full_cmd string in * each of the builtins. */
 void ast_builtins_init(void)
 {
 	AST_VECTOR_INIT(&shutdown_commands, 0);
 	ast_cli_register_multiple(cli_cli, ARRAY_LEN(cli_cli));
 	ast_register_cleanup(cli_shutdown);
-}
-
-void ast_cli_channels_init(void)
-{
-	ast_cli_register_multiple(cli_channels_cli, ARRAY_LEN(cli_channels_cli));
-	ast_register_cleanup(cli_channels_shutdown);
 }
 
 /*!

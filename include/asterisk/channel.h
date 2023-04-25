@@ -2255,8 +2255,8 @@ int ast_senddigit_mf_end(struct ast_channel *chan);
  * \param chan channel to act upon
  * \param digit the MF digit to send, encoded in ASCII
  * \param duration the duration of a numeric digit ending in ms
- * \param durationkp the duration of a KP digit ending in ms
- * \param durationst the duration of a ST, STP, ST2P, or ST3P digit ending in ms
+ * \param duration the duration of a KP digit ending in ms
+ * \param duration the duration of a ST, STP, ST2P, or ST3P digit ending in ms
  * \param is_external 1 if called by a thread that is not the channel's media
  *                handler thread, 0 if called by the channel's media handler
  *                thread.
@@ -4112,6 +4112,8 @@ struct ast_channel_monitor {
 };
 
 /* ACCESSOR FUNCTIONS */
+/*! \brief Set the channel name */
+void ast_channel_name_set(struct ast_channel *chan, const char *name);
 
 #define DECLARE_STRINGFIELD_SETTERS_FOR(field)	\
 	void ast_channel_##field##_set(struct ast_channel *chan, const char *field); \

@@ -41,7 +41,6 @@
 #include "asterisk/json.h"
 #include "asterisk/module.h"
 #include "asterisk/test.h"
-#include "asterisk/file.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -1270,6 +1269,27 @@ static int safe_fclose(FILE *f)
 	return 0;
 }
 
+static FILE *mkstemp_file(char *template, const char *mode)
+{
+	int fd = mkstemp(template);
+	FILE *file;
+
+	if (fd < 0) {
+		ast_log(LOG_ERROR, "Failed to create temp file: %s\n",
+			strerror(errno));
+		return NULL;
+	}
+
+	file = fdopen(fd, mode);
+	if (!file) {
+		ast_log(LOG_ERROR, "Failed to create temp file: %s\n",
+			strerror(errno));
+		return NULL;
+	}
+
+	return file;
+}
+
 AST_TEST_DEFINE(json_test_dump_load_file)
 {
 	RAII_VAR(struct ast_json *, uut, NULL, ast_json_unref);
@@ -1292,7 +1312,7 @@ AST_TEST_DEFINE(json_test_dump_load_file)
 
 	/* dump/load file */
 	expected = ast_json_pack("{ s: i }", "one", 1);
-	file = ast_file_mkftemp(filename, 0644);
+	file = mkstemp_file(filename, "w");
 	ast_test_validate(test, NULL != file);
 	uut_res = ast_json_dump_file(expected, file);
 	ast_test_validate(test, 0 == uut_res);
@@ -1327,7 +1347,7 @@ AST_TEST_DEFINE(json_test_dump_load_new_file)
 
 	/* dump/load filename */
 	expected = ast_json_pack("{ s: i }", "one", 1);
-	file = ast_file_mkftemp(filename, 0644);
+	file = mkstemp_file(filename, "w");
 	ast_test_validate(test, NULL != file);
 	uut_res = ast_json_dump_new_file(expected, filename);
 	ast_test_validate(test, 0 == uut_res);
@@ -1358,7 +1378,7 @@ AST_TEST_DEFINE(json_test_dump_load_null)
 	/* dump/load NULL tests */
 	uut = ast_json_load_string("{ \"one\": 1 }", NULL);
 	ast_test_validate(test, NULL != uut);
-	file = ast_file_mkftemp(filename, 0644);
+	file = mkstemp_file(filename, "w");
 	ast_test_validate(test, NULL != file);
 	ast_test_validate(test, NULL == ast_json_dump_string(NULL));
 	ast_test_validate(test, -1 == ast_json_dump_file(NULL, file));

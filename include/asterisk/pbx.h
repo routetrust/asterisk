@@ -271,9 +271,9 @@ int pbx_exec(struct ast_channel *c, struct ast_app *app, const char *data);
 /*!
  * \brief Execute an application
  *
- * \param chan channel to execute on
- * \param app_name name of app to execute
- * \param app_args the data passed into the app
+ * \param c channel to execute on
+ * \param app name of app to execute
+ * \param data the data passed into the app
  *
  * This application executes an application by name on a given channel.
  * It is a wrapper around pbx_exec that will perform variable substitution
@@ -1472,28 +1472,6 @@ void ast_str_substitute_variables_varshead(struct ast_str **buf, ssize_t maxlen,
  * \param used Number of bytes read from the template.  (May be NULL)
  */
 void ast_str_substitute_variables_full(struct ast_str **buf, ssize_t maxlen, struct ast_channel *c, struct varshead *headp, const char *templ, size_t *used);
-
-/*!
- * \brief Perform variable/function/expression substitution on an ast_str
- *
- * \param buf      Result will be placed in this buffer.
- * \param maxlen   -1 if the buffer should not grow, 0 if the buffer
- *                 may grow to any size, and >0 if the buffer should
- *                 grow only to that number of bytes.
- * \param c        A channel from which to extract values, and to pass
- *                 to any dialplan functions.
- * \param headp    A channel variables list to also search for variables.
- * \param templ    Variable template to expand.
- * \param used     Number of bytes read from the template.  (May be NULL)
- * \param use_both Normally, if a channel is specified, headp is ignored.
- *                 If this parameter is set to 1 and both a channel and headp
- *                 are specified, the channel will be searched for variables
- *                 first and any not found will be searched for in headp.
- */
-void ast_str_substitute_variables_full2(struct ast_str **buf, ssize_t maxlen,
-	struct ast_channel *c, struct varshead *headp, const char *templ,
-	size_t *used, int use_both);
-
 /*! @} */
 
 int ast_extension_patmatch(const char *pattern, const char *data);
