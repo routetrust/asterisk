@@ -13,6 +13,365 @@
 ==============================================================================
 
 ------------------------------------------------------------------------------
+--- Functionality changes from Asterisk 18.16.0 to Asterisk 18.17.0 ----------
+------------------------------------------------------------------------------
+
+app_broadcast
+------------------
+ * A Broadcast application is now available which allows
+   for asynchronous one-to-many and many-to-one channel audio.
+
+app_directory
+------------------
+ * A new option 's' has been added to the Directory() application that
+   will skip calling the extension and instead set the extension as
+   DIRECTORY_EXTEN channel variable.
+
+app_read
+------------------
+ * A new option 'e' has been added to allow Read() to return the
+   terminator as the dialed digits in the case where only the terminator
+   is entered.
+
+app_senddtmf
+------------------
+ * A new option has been added to SendDTMF() which will answer the
+   specified channel if it is not already up. If no channel is specified,
+   the current channel will be answered instead.
+
+app_signal
+------------------
+ * Adds Signal and WaitForSignal applications
+   which can be used for signaling or as a
+   simple message queue in the dialplan.
+
+func_json
+------------------
+ * Additional parsing capabilities have been added to the
+   JSON_DECODE function, including support for arrays
+   and recursive indexing.
+
+res_phoneprov
+------------------
+ * On multihomed Asterisk servers with dynamic SERVER template variables,
+   reloading this module is no longer required when re-provisioning your
+   phone to another interface address (e.g. when moving between VLANs.)
+
+res_pjsip_rfc3326
+------------------
+ * Add ability to set HANGUPCAUSE when SIP causecode received in BYE Reason header (in
+   addition to currently supported Q.850). The first header found will be used to set
+   the HANGUPCAUSE variable.
+
+res_pjsip_session
+------------------
+ * The overlap_context option now allows explicitly
+   specifying a context to use for overlap dialing matches.
+
+res_rtp_asterisk
+------------------
+ * This module has been updated to provide additional
+   quality statistics in the form of an Asterisk
+   Media Experience Score.  The score is available using
+   the same mechanisms you'd use to retrieve jitter, loss,
+   and rtt statistics.  For more information about the
+   score and how to retrieve it, see
+   https://wiki.asterisk.org/wiki/display/AST/Media+Experience+Score
+
+------------------------------------------------------------------------------
+--- Functionality changes from Asterisk 18.15.0 to Asterisk 18.16.0 ----------
+------------------------------------------------------------------------------
+
+AMI
+------------------
+ * The AOCMessage action can now be used to generate AOC-S messages.
+
+Add support for named capture agent.
+------------------
+ * A name for the capture agent can now be specified
+   using the capture_name option which, if specified,
+   will be sent to the HEP server.
+
+app_if
+------------------
+ * Adds the If, ElseIf, Else, EndIf, and ExitIf applications
+   for conditional execution of a block of code.
+
+app_mixmonitor
+------------------
+ * The d option for MixMonitor now allows deleting
+   the original recording when MixMonitor exits,
+   which can be useful when MixMonitor copies it
+   somewhere else before exiting.
+
+ * Adds the c option to use the real Caller ID on
+   the channel in voicemail recordings as opposed
+   to the Connected Line.
+
+app_voicemail
+------------------
+ * The voicemail user option attachextrecs can
+   now be set to control whether external recordings
+   trigger voicemail email notifications.
+
+cdr
+------------------
+ * Two new options have been added which allow
+   bridging and dial state changes to be ignored
+   in CDRs, which can be useful if a single CDR
+   is desired for a channel.
+
+chan_dahdi
+------------------
+ * FXO channels (FXS signaled) that don't use callerid or
+   distinctive ring detection can now be configured
+   to enter the dialplan immediately using immediate=yes,
+   instead of waiting for at least one ring.
+
+pbx_builtins
+------------------
+ * It is now possible to not wait for media on
+   a channel when answering it using Answer,
+   by specifying the i option.
+
+res_pjsip
+------------------
+ * Added options "security_negotiation" and "security_mechanisms" to pjsip
+   endpoints and registrations. "security_negotiation" can be set to "no" (default)
+   or "mediasec", and "security_mechanisms" can be a list of comma-separated
+   security_mechanisms in the form defined by RFC 3329 section 2.2.
+
+ * A new option named "all_codecs_on_empty_reinvite" has been added to the
+   global section. When this option is enabled, on reception of a re-INVITE
+   without SDP, Asterisk will send an SDP offer in the 200 OK response containing
+   all configured codecs on the endpoint, instead of simply those that have
+   already been negotiated. RFC 3261 specifies this as a SHOULD requirement.
+   The default value is "off".
+
+res_pjsip_aoc
+------------------
+ * Added res_pjsip_aoc which gives chan_pjsip the ability to send Advice-of-Charge messages.
+   A new endpoint option, send_aoc, controls this.
+
+res_pjsip_header_funcs
+------------------
+ * The new PJSIP_HEADER_PARAM function now fully supports both
+   URI and header parameters. Both reading and writing
+   parameters are supported.
+
+res_pjsip_logger
+------------------
+ * SIP messages can now be filtered by SIP request method
+   (INVITE, CANCEL, ACK, BYE, REGISTER, OPTION,
+   SUBSCRIBE, NOTIFY, PUBLISH, INFO, and MESSAGE),
+   allowing for more granular debugging to be done
+   in the CLI. This applies to requests but not responses.
+
+res_pjsip_notify
+------------------
+ * Allows using the config options in pjsip_notify.conf
+   from AMI actions as with the existing CLI commands.
+
+res_tonedetect
+------------------
+ * The TONE_DETECT function now supports
+   detection of audible ringback tone
+   using the p option.
+
+xmldocs
+------------------
+ * The XML documentation can now be reloaded without restarting
+   Asterisk, which makes it possible to load new modules that
+   enforce documentation without restarting Asterisk.
+
+------------------------------------------------------------------------------
+--- Functionality changes from Asterisk 18.14.0 to Asterisk 18.15.0 ----------
+------------------------------------------------------------------------------
+
+New EXPORT function
+------------------
+ * A new function, EXPORT, allows writing variables
+   and functions on other channels, the complement
+   of the IMPORT function.
+
+app_amd
+------------------
+ * An audio file to play during AMD processing can
+   now be specified to the AMD application or configured
+   in the amd.conf configuration file.
+
+app_bridgewait
+------------------
+ * Adds the n option to not answer the channel when
+   the BridgeWait application is called.
+
+features
+------------------
+ * The Bridge application now has the n "no answer" option
+   that can be used to prevent the channel from being
+   automatically answered prior to bridging.
+
+func_strings
+------------------
+ * Three new functions, TRIM, LTRIM, and RTRIM, are
+   now available for trimming leading and trailing
+   whitespace.
+
+res_pjsip
+------------------
+ * A new option named "peer_supported" has been added to the endpoint option
+   100rel. When set to this option, Asterisk sends provisional responses
+   reliably if the peer supports it. If the peer does not support reliable
+   provisional responses, Asterisk sends them normally.
+
+------------------------------------------------------------------------------
+--- Functionality changes from Asterisk 18.14.0 to Asterisk 18.15.0 ----------
+------------------------------------------------------------------------------
+
+Transfer feature
+------------------
+ * The following capabilities have been added to the
+   transfer feature:
+
+   - The transfer initiation announcement prompt can
+   now be customized in features.conf.
+
+   - The TRANSFER_EXTEN variable now can be set on the
+   transferer's channel in order to allow the transfer
+   function to automatically attempt to go to the extension
+   contained in this variable, if it exists. The transfer
+   context behavior is not changed (TRANSFER_CONTEXT is used
+   if it exists; otherwise the default context is used).
+
+app_confbridge
+------------------
+ * Adds the end_marked_any option which can be used
+   to kick users from a conference after any
+   marked user leaves (including marked users).
+
+locks
+------------------
+ * A new AMI event, DeadlockStart, is now available
+   when Asterisk is compiled with DETECT_DEADLOCKS,
+   and can indicate that a deadlock has occured.
+
+res_geolocation
+------------------
+ * Added 4 built-in profiles:
+     "<prefer_config>"
+     "<discard_config>"
+     "<prefer_incoming>"
+     "<discard_incoming>"
+   The profiles are empty except for having their precedence
+   set.
+
+   Added profile parameter "suppress_empty_ca_elements" that
+   will cause Civic Address elements that are empty to be
+   suppressed from the outgoing PIDF-LO document.
+
+   You can now specify the location object's format, location_info,
+   method, location_source and confidence parameters directly on
+   a profile object for simple scenarios where the location
+   information isn't common with any other profiles.  This is
+   mutually exclusive with setting location_reference on the
+   profile.
+
+   Added an 'a' option to the GEOLOC_PROFILE function to allow
+   variable lists like location_info_refinement to be appended
+   to instead of replacing the entire list.
+
+   Added an 'r' option to the GEOLOC_PROFILE function to resolve all
+   variables before a read operation and after a Set operation.
+
+res_musiconhold_answeredonly
+------------------
+ * This change adds an option, answeredonly, that will prevent music
+   on hold on channels that are not answered.
+
+res_pjsip
+------------------
+ * TLS transports in res_pjsip can now reload their TLS certificate
+   and private key files, provided the filename of them has not
+   changed.
+
+------------------------------------------------------------------------------
+--- Functionality changes from Asterisk 18.13.0 to Asterisk 18.14.0 ----------
+------------------------------------------------------------------------------
+
+res_geolocation
+------------------
+ * * Added processing for the 'confidence' element.
+   * Added documentation to some APIs.
+   * removed a lot of complex code related to the very-off-nominal
+     case of needing to process multiple location info sources.
+   * Create a new 'ast_geoloc_eprofile_to_pidf' API that just takes
+     one eprofile instead of a datastore of multiples.
+   * Plugged a huge leak in XML processing that arose from
+     insufficient documentation by the libxml/libxslt authors.
+   * Refactored stylesheets to be more efficient.
+   * Renamed 'profile_action' to 'profile_precedence' to better
+     reflect it's purpose.
+   * Added the config option for 'allow_routing_use' which
+     sets the value of the 'Geolocation-Routing' header.
+   * Removed the GeolocProfileCreate and GeolocProfileDelete
+     dialplan apps.
+   * Changed the GEOLOC_PROFILE dialplan function as follows:
+     * Removed the 'profile' argument.
+     * Automatically create a profile if it doesn't exist.
+     * Delete a profile if 'inheritable' is set to no.
+   * Fixed various bugs and leaks
+   * Updated Asterisk WiKi documentation.
+
+------------------------------------------------------------------------------
+--- Functionality changes from Asterisk 18.13.0 to Asterisk 18.14.0 ----------
+------------------------------------------------------------------------------
+
+chan_dahdi
+------------------
+ * A POLARITY function is now available that allows
+   getting or setting the polarity on a channel
+   from the dialplan.
+
+db
+------------------
+ * The DBPrefixGet AMI action now allows retrieving
+   all of the DB keys beginning with a particular
+   prefix.
+
+res_cliexec
+------------------
+ * A new CLI command, dialplan exec application, has
+   been added which allows dialplan applications to be
+   executed at the CLI, useful for some quick testing
+   without needing to write dialplan.
+
+res_geolocation
+------------------
+ * Added res_geolocation which creates the core capabilities
+   to manipulate Geolocation information on SIP INVITEs.
+
+res_pjsip
+------------------
+ * A new transport option 'allow_wildcard_certs' has been added that when it
+   and 'verify_server' are both set to 'yes', enables verification against
+   wildcards, i.e. '*.' in certs for common, and subject alt names of type DNS
+   for TLS transport types. Names must start with the wildcard. Partial wildcards,
+   e.g. 'f*.example.com' and 'foo.*.com' are not allowed. As well, names only
+   match against a single level meaning '*.example.com' matches 'foo.example.com',
+   but not 'foo.bar.example.com'.
+
+res_pjsip_geolocation
+------------------
+ * Added res_pjsip_geolocation which gives chan_pjsip
+   the ability to use the core geolocation capabilities.
+
+res_pjsip_header_funcs
+------------------
+ * Add function PJSIP_RESPONSE_HEADERS() to get list of header names from 200 response, in the same way as PJSIP_HEADERS() from the request.
+
+   Add function PJSIP_RESPONSE_HEADER() to read header from 200 response, in the same way as PJSIP_HEADER() from the request.
+
+------------------------------------------------------------------------------
 --- Functionality changes from Asterisk 18.12.0 to Asterisk 18.13.0 ----------
 ------------------------------------------------------------------------------
 
