@@ -2634,8 +2634,21 @@ static int hangup(void *data)
 {
 	struct hangup_data *h_data = data;
 	struct ast_channel *ast = h_data->chan;
-	struct ast_sip_channel_pvt *channel = ast_channel_tech_pvt(ast);
+	struct ast_sip_channel_pvt *channel;
 	SCOPE_ENTER(1, "%s\n", ast_channel_name(ast));
+
+	/*
+	 * Claim the tech pvt under the channel lock.  chan_pjsip_hangup() reads it
+	 * under the same lock, so this is what stops the two of us from both
+	 * deciding that we own - and may release - the channel pvt and its session.
+	 * Without it the channel lock that the core holds across
+	 * ast_channel_tech()->hangup() protects nothing, because we run on the
+	 * session serializer and never took it.
+	 */
+	ast_channel_lock(ast);
+	channel = ast_channel_tech_pvt(ast);
+	ast_channel_tech_pvt_set(ast, NULL);
+	ast_channel_unlock(ast);
 
 	/*
 	 * Before cleaning we have to ensure that channel or its session is not NULL
@@ -2674,22 +2687,42 @@ static int hangup(void *data)
 /*! \brief Function called by core to hang up a PJSIP session */
 static int chan_pjsip_hangup(struct ast_channel *ast)
 {
-	struct ast_sip_channel_pvt *channel = ast_channel_tech_pvt(ast);
+	struct ast_sip_channel_pvt *channel;
+	struct ast_sip_session *session;
+	struct ast_taskprocessor *serializer;
 	int cause;
 	int tech_cause;
 	int original_tech_cause;
-	struct hangup_data *h_data;
+	int pushed;
+	struct hangup_data *h_data = NULL;
 	SCOPE_ENTER(1, "%s\n", ast_channel_name(ast));
 
-	if (!channel || !channel->session) {
-		SCOPE_EXIT_RTN_VALUE(-1, "%s: No channel or session\n", ast_channel_name(ast));
+	/*
+	 * We are called with the channel locked, which is what makes reading the
+	 * tech pvt here safe against hangup() claiming it.  Take our own references
+	 * to the pvt and the session so that neither can be freed underneath us once
+	 * we drop out of the locked region - a bare ast_channel_tech_pvt() read is
+	 * not enough, the whole chain (pvt -> session -> serializer) can be torn
+	 * down by a hangup task while we are still walking it.
+	 */
+	channel = ao2_bump(ast_channel_tech_pvt(ast));
+	if (!channel) {
+		SCOPE_EXIT_RTN_VALUE(-1, "%s: No channel\n", ast_channel_name(ast));
 	}
 
-	cause = ast_channel_hangupcause(channel->session->channel);
+	session = ao2_bump(channel->session);
+	if (!session) {
+		ao2_cleanup(channel);
+		SCOPE_EXIT_RTN_VALUE(-1, "%s: No session\n", ast_channel_name(ast));
+	}
+
+	/* Use the channel we were handed rather than session->channel, which another
+	 * thread may already have cleared. */
+	cause = ast_channel_hangupcause(ast);
 	tech_cause = hangup_cause2sip(cause);
-	original_tech_cause = ast_channel_tech_hangupcause(channel->session->channel);
+	original_tech_cause = ast_channel_tech_hangupcause(ast);
 	if (!original_tech_cause) {
-		ast_channel_tech_hangupcause_set(channel->session->channel, tech_cause);
+		ast_channel_tech_hangupcause_set(ast, tech_cause);
 	}
 
 	h_data = hangup_data_alloc(tech_cause, ast);
@@ -2697,21 +2730,39 @@ static int chan_pjsip_hangup(struct ast_channel *ast)
 		goto failure;
 	}
 
-	if (ast_sip_push_task(channel->session->serializer, hangup, h_data)) {
+	/*
+	 * Hold a reference to the serializer across the push as well.  We have seen
+	 * it destroyed while a push into it was in flight.
+	 */
+	serializer = ao2_bump(session->serializer);
+	pushed = ast_sip_push_task(serializer, hangup, h_data);
+	ast_taskprocessor_unreference(serializer);
+
+	if (pushed) {
 		ast_log(LOG_WARNING, "Unable to push hangup task to the taskpool. Expect bad things\n");
 		goto failure;
 	}
+
+	/* The queued task now owns the tech pvt reference; release only our own. */
+	ao2_cleanup(session);
+	ao2_cleanup(channel);
 
 	SCOPE_EXIT_RTN_VALUE(0, "%s: Cause: %d  Tech Cause: %d\n", ast_channel_name(ast),
 		cause, tech_cause);
 
 failure:
 	/* Go ahead and do our cleanup of the session and channel even if we're not going
-	 * to be able to send our SIP request/response
+	 * to be able to send our SIP request/response.  We still hold the channel
+	 * lock, so clearing the tech pvt here is what keeps a hangup task from
+	 * claiming it as well.
 	 */
-	clear_session_and_channel(channel->session, ast);
-	ao2_cleanup(channel);
+	clear_session_and_channel(session, ast);
 	ao2_cleanup(h_data);
+
+	/* Release the reference the tech pvt held, and then our own. */
+	ao2_ref(channel, -1);
+	ao2_cleanup(session);
+	ao2_cleanup(channel);
 
 	SCOPE_EXIT_RTN_VALUE(-1, "%s: Cause: %d\n", ast_channel_name(ast), cause);
 }
