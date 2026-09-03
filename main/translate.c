@@ -459,7 +459,11 @@ static int framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 	pvt->f.len = f->len;
 	pvt->f.seqno = f->seqno;
 
-	if (f->samples == 0) {
+	/*
+	 * A CNG frame legitimately carries no samples - process_cn_rfc3389() builds
+	 * it that way - so it is not evidence of a malformed audio frame.
+	 */
+	if (f->samples == 0 && f->frametype != AST_FRAME_CNG) {
 		/* Do not log empty audio frame */
 		if (!f->src || strcasecmp(f->src, "ast_prod")) {
 			ast_log(LOG_WARNING, "no samples for %s\n", pvt->t->name);
