@@ -163,7 +163,19 @@ int ast_sip_requires_authentication(struct ast_sip_endpoint *endpoint, pjsip_rx_
 	}
 
 	if (!registered_authenticator) {
-		ast_log(LOG_WARNING, "No SIP authenticator registered. Assuming authentication is not required\n");
+		/*
+		 * Whether an authenticator module is registered is fixed for the life of
+		 * the process, so this condition cannot change between requests.  Log it
+		 * once instead of on every request - the warning is still worth making,
+		 * it just does not need repeating at call volume.  A benign race can emit
+		 * it twice, which is harmless.
+		 */
+		static int warned;
+
+		if (!warned) {
+			warned = 1;
+			ast_log(LOG_WARNING, "No SIP authenticator registered. Assuming authentication is not required\n");
+		}
 		return 0;
 	}
 
@@ -174,7 +186,13 @@ enum ast_sip_check_auth_result ast_sip_check_authentication(struct ast_sip_endpo
 		pjsip_rx_data *rdata, pjsip_tx_data *tdata)
 {
 	if (!registered_authenticator) {
-		ast_log(LOG_WARNING, "No SIP authenticator registered. Assuming authentication is successful\n");
+		/* Logged once, for the same reason as in ast_sip_requires_authentication(). */
+		static int warned;
+
+		if (!warned) {
+			warned = 1;
+			ast_log(LOG_WARNING, "No SIP authenticator registered. Assuming authentication is successful\n");
+		}
 		return AST_SIP_AUTHENTICATION_SUCCESS;
 	}
 	return registered_authenticator->check_authentication(endpoint, rdata, tdata);

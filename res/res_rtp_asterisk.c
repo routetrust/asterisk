@@ -6284,7 +6284,7 @@ static struct ast_frame *process_cn_rfc3389(struct ast_rtp_instance *instance, u
 
 		ast_rtp_instance_get_remote_address(instance, &remote_address);
 
-		ast_log(LOG_NOTICE, "Comfort noise support incomplete in Asterisk (RFC 3389). Please turn off on client if possible. Client address: %s\n",
+		ast_debug(1, "Comfort noise support incomplete in Asterisk (RFC 3389). Please turn off on client if possible. Client address: %s\n",
 			ast_sockaddr_stringify(&remote_address));
 		ast_set_flag(rtp, FLAG_3389_WARNING);
 	}
