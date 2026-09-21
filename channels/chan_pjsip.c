@@ -2733,10 +2733,19 @@ static int chan_pjsip_hangup(struct ast_channel *ast)
 	/*
 	 * Hold a reference to the serializer across the push as well.  We have seen
 	 * it destroyed while a push into it was in flight.
+	 *
+	 * Release it with ao2_cleanup() rather than ast_taskprocessor_unreference().
+	 * The latter is not the inverse of ao2_bump(): once the count reaches the
+	 * three references it expects a dying taskprocessor to hold, it unlinks the
+	 * taskprocessor and shuts its listener down.  If another thread drops the
+	 * session's own serializer reference while we are inside this window, that
+	 * fires on a live serializer we have just queued the hangup task into.  The
+	 * push has already succeeded, so we see no error, but the task never runs
+	 * and session_end_completion() is never reached, orphaning the session.
 	 */
 	serializer = ao2_bump(session->serializer);
 	pushed = ast_sip_push_task(serializer, hangup, h_data);
-	ast_taskprocessor_unreference(serializer);
+	ao2_cleanup(serializer);
 
 	if (pushed) {
 		ast_log(LOG_WARNING, "Unable to push hangup task to the taskpool. Expect bad things\n");
