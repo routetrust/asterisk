@@ -4981,6 +4981,27 @@ static void session_inv_on_tsx_state_changed(pjsip_inv_session *inv, pjsip_trans
 		if (session_end_if_disconnected(id, inv)) {
 			SCOPE_EXIT_RTN("Disconnected\n");
 		}
+		if (tsx->method.id == PJSIP_BYE_METHOD) {
+			/*
+			 * A BYE is deliberately skipped by the session_end_if_disconnected()
+			 * call earlier in this function so that destruction is held off until
+			 * its transaction completes.  That makes the call above the only
+			 * remaining path that can end the session.  If it declined because the
+			 * INVITE session is not DISCONNECTED, nothing will ever release the
+			 * reference held by inv->mod_data and the session, its datastores and
+			 * its dialog association are orphaned for the life of the process.
+			 *
+			 * Peers that never respond to a BYE drive every call down this path,
+			 * so log what state we were actually left in.
+			 */
+			ast_log(LOG_WARNING,
+				"%s: BYE transaction ended without ending the session - "
+				"tsx state %s, status %d, inv state %s, defer_end %d, ended_while_deferred %d\n",
+				ast_sip_session_get_name(session),
+				pjsip_tsx_state_str(tsx->state), tsx->status_code,
+				pjsip_inv_state_name(inv->state),
+				session->defer_end, session->ended_while_deferred);
+		}
 		break;
 	case PJSIP_EVENT_USER:
 	case PJSIP_EVENT_UNKNOWN:
