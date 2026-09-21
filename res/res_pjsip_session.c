@@ -4834,12 +4834,13 @@ static void session_inv_on_tsx_state_changed(pjsip_inv_session *inv, pjsip_trans
 	 */
 	if (!session->channel) {
 		ast_log(LOG_NOTICE,
-			"%s: post-hangup tsx: method %.*s, tsx state %s, status %d, event %d, inv state %s\n",
+			"%s: post-hangup tsx: method %.*s, tsx state %s, status %d, event %d, inv state %s, call-id %.*s\n",
 			ast_sip_session_get_name(session),
 			(int) pj_strlen(&tsx->method.name), pj_strbuf(&tsx->method.name),
 			pjsip_tsx_state_str(tsx->state), tsx->status_code,
 			(int) e->body.tsx_state.type,
-			pjsip_inv_state_name(inv->state));
+			pjsip_inv_state_name(inv->state),
+			(int) pj_strlen(&inv->dlg->call_id->id), pj_strbuf(&inv->dlg->call_id->id));
 	}
 
 	/*
