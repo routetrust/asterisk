@@ -4818,32 +4818,6 @@ static void session_inv_on_tsx_state_changed(pjsip_inv_session *inv, pjsip_trans
 	}
 
 	/*
-	 * Diagnostic.  Once the channel is gone the session is on its way out, so
-	 * every transaction event we see from here on is part of the teardown we
-	 * are trying to account for.  session_end_if_disconnected() is the only
-	 * thing that releases the reference inv->mod_data holds, and several paths
-	 * through the switch below return without ever calling it, so log the
-	 * method, event type, transaction state and INVITE session state for the
-	 * whole post-hangup window.
-	 *
-	 * Event ids: 0 UNKNOWN, 1 TIMER, 2 TX_MSG, 3 RX_MSG, 4 TRANSPORT_ERROR,
-	 * 5 TSX_STATE, 6 USER.
-	 *
-	 * This is verbose - one line per transaction event per ending call - and is
-	 * meant for short instrumented runs, not for general production use.
-	 */
-	if (!session->channel) {
-		ast_log(LOG_NOTICE,
-			"%s: post-hangup tsx: method %.*s, tsx state %s, status %d, event %d, inv state %s, call-id %.*s\n",
-			ast_sip_session_get_name(session),
-			(int) pj_strlen(&tsx->method.name), pj_strbuf(&tsx->method.name),
-			pjsip_tsx_state_str(tsx->state), tsx->status_code,
-			(int) e->body.tsx_state.type,
-			pjsip_inv_state_name(inv->state),
-			(int) pj_strlen(&inv->dlg->call_id->id), pj_strbuf(&inv->dlg->call_id->id));
-	}
-
-	/*
 	 * If the session is disconnected really nothing else to do unless currently transacting
 	 * a BYE.  If a BYE then hold off destruction until that transaction has its final
 	 * response.
@@ -5017,27 +4991,6 @@ static void session_inv_on_tsx_state_changed(pjsip_inv_session *inv, pjsip_trans
 		 */
 		if (session_end_if_disconnected(id, inv)) {
 			SCOPE_EXIT_RTN("Disconnected\n");
-		}
-		if (tsx->method.id == PJSIP_BYE_METHOD) {
-			/*
-			 * A BYE is deliberately skipped by the session_end_if_disconnected()
-			 * call earlier in this function so that destruction is held off until
-			 * its transaction completes.  That makes the call above the only
-			 * remaining path that can end the session.  If it declined because the
-			 * INVITE session is not DISCONNECTED, nothing will ever release the
-			 * reference held by inv->mod_data and the session, its datastores and
-			 * its dialog association are orphaned for the life of the process.
-			 *
-			 * Peers that never respond to a BYE drive every call down this path,
-			 * so log what state we were actually left in.
-			 */
-			ast_log(LOG_WARNING,
-				"%s: BYE transaction ended without ending the session - "
-				"tsx state %s, status %d, inv state %s, defer_end %d, ended_while_deferred %d\n",
-				ast_sip_session_get_name(session),
-				pjsip_tsx_state_str(tsx->state), tsx->status_code,
-				pjsip_inv_state_name(inv->state),
-				session->defer_end, session->ended_while_deferred);
 		}
 		break;
 	case PJSIP_EVENT_USER:
