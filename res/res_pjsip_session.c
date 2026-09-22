@@ -3433,8 +3433,6 @@ struct ast_sip_session *ast_sip_session_create_outgoing(struct ast_sip_endpoint 
 
 static int session_end(void *vsession);
 static int session_end_completion(void *vsession);
-static void session_arm_teardown_timeout(struct ast_sip_session *session);
-static void session_disarm_teardown_timeout(struct ast_sip_session *session);
 
 void ast_sip_session_terminate(struct ast_sip_session *session, int response)
 {
@@ -3446,13 +3444,6 @@ void ast_sip_session_terminate(struct ast_sip_session *session, int response)
 		session->terminate_while_deferred = 1;
 		SCOPE_EXIT_RTN("Deferred\n");
 	}
-
-	/*
-	 * From here on the session is on its way out.  Bound how long it may take
-	 * to get there so that a peer which never completes its half of the
-	 * teardown cannot strand the session for the life of the process.
-	 */
-	session_arm_teardown_timeout(session);
 
 	if (!response) {
 		response = 603;
@@ -4622,108 +4613,12 @@ static int session_end_completion(void *vsession)
 {
 	struct ast_sip_session *session = vsession;
 
-	/* The teardown we were bounding has happened. */
-	session_disarm_teardown_timeout(session);
-
 	ast_sip_dialog_set_serializer(session->inv_session->dlg, NULL);
 	ast_sip_dialog_set_endpoint(session->inv_session->dlg, NULL);
 
 	/* Now we can release the ref that was held by session->inv_session */
 	ao2_cleanup(session);
 	return 0;
-}
-
-/*!
- * \internal
- * \brief How long a session may outlive its channel before it is forced down.
- *
- * The bound has to clear the longest legitimate teardown.  A BYE delayed behind
- * an outstanding UAC INVITE can wait Timer F on that INVITE (32s) and then
- * Timer F plus Timer K on the BYE itself (37s), so anything much below 70
- * seconds risks killing a session that was going to finish on its own.
- */
-static int session_teardown_timeout_sec = 90;
-
-/*!
- * \internal
- * \brief Force down a session that never completed its teardown.
- *
- * session_end_if_disconnected() is the only thing that releases the reference
- * inv->mod_data holds, and every route to it depends on a transaction event
- * arriving.  When one does not - a BYE whose transaction never terminates, for
- * instance - nothing else reclaims the session.  This is the backstop.
- */
-static int session_teardown_timeout(void *vsession)
-{
-	struct ast_sip_session *session = vsession;
-	pjsip_inv_session *inv = session->inv_session;
-	int id = session_module.id;
-
-	if (!inv || !inv->dlg) {
-		return 0;
-	}
-
-	/*
-	 * Claim the reference inv->mod_data holds, the same way
-	 * session_end_if_disconnected() does.  If it is already gone then the
-	 * session finished normally and there is nothing to do.
-	 */
-	pjsip_dlg_inc_lock(inv->dlg);
-	if (!inv->mod_data[id]) {
-		pjsip_dlg_dec_lock(inv->dlg);
-		return 0;
-	}
-	inv->mod_data[id] = NULL;
-	pjsip_dlg_dec_lock(inv->dlg);
-
-	ast_log(LOG_WARNING,
-		"%s: Session had not completed teardown %d seconds after termination was "
-		"requested; forcing it down.  inv state %s, call-id %.*s\n",
-		ast_sip_session_get_name(session), session_teardown_timeout_sec,
-		pjsip_inv_state_name(inv->state),
-		(int) pj_strlen(&inv->dlg->call_id->id), pj_strbuf(&inv->dlg->call_id->id));
-
-	/*
-	 * The same sequence ast_sip_session_terminate() uses when it has to do the
-	 * cleanup itself.  session_end_completion() consumes the reference claimed
-	 * above.
-	 */
-	pjsip_inv_terminate(inv, 503, PJ_TRUE);
-	session_end(session);
-	session_end_completion(session);
-
-	return 0;
-}
-
-static void session_arm_teardown_timeout(struct ast_sip_session *session)
-{
-	if (session->teardown_timeout || session_teardown_timeout_sec <= 0) {
-		return;
-	}
-
-	/*
-	 * The scheduler takes its own reference on the session, so the task cannot
-	 * fire against freed memory.  session_end_completion() drops our reference
-	 * to the task, which is what breaks the cycle on a normal teardown.
-	 */
-	session->teardown_timeout = ast_sip_schedule_task(session->serializer,
-		session_teardown_timeout_sec * 1000, session_teardown_timeout,
-		"session-teardown", session,
-		AST_SIP_SCHED_TASK_ONESHOT | AST_SIP_SCHED_TASK_DATA_AO2
-			| AST_SIP_SCHED_TASK_DATA_FREE);
-}
-
-static void session_disarm_teardown_timeout(struct ast_sip_session *session)
-{
-	struct ast_sip_sched_task *schtd = session->teardown_timeout;
-
-	if (!schtd) {
-		return;
-	}
-
-	session->teardown_timeout = NULL;
-	ast_sip_sched_task_cancel(schtd);
-	ao2_ref(schtd, -1);
 }
 
 static int check_request_status(pjsip_inv_session *inv, pjsip_event *e)

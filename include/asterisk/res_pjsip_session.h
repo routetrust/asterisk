@@ -227,8 +227,6 @@ struct ast_sip_session {
 	struct ast_sip_aor *aor;
 	/*! From header saved at invite creation */
 	pjsip_fromto_hdr *saved_from_hdr;
-	/*! Bounds how long the session may outlive its channel */
-	struct ast_sip_sched_task *teardown_timeout;
 	/*! Whether the end of the session should be deferred */
 	unsigned int defer_end:1;
 	/*! Session end (remote hangup) requested while termination deferred */
