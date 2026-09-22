@@ -4845,11 +4845,22 @@ static void session_inv_on_tsx_state_changed(pjsip_inv_session *inv, pjsip_trans
 
 	/*
 	 * If the session is disconnected really nothing else to do unless currently transacting
-	 * a BYE. If a BYE then hold off destruction until the transaction timeout occurs. This
-	 * has to be done for BYEs because sometimes the dialog can be in a disconnected
-	 * state but the BYE request transaction has not yet completed.
+	 * a BYE.  If a BYE then hold off destruction until that transaction has its final
+	 * response.
+	 *
+	 * Once the BYE transaction reaches COMPLETED the final response is in and there is
+	 * nothing further for the session to do.  Timer K only absorbs retransmissions of that
+	 * response, which the transaction layer handles without us.  Waiting for TERMINATED
+	 * instead means the session is never reclaimed at all when that event does not arrive,
+	 * because this is the only path that ends a session whose teardown was a BYE.
+	 *
+	 * Releasing here cannot pull the dialog out from under the live transaction.
+	 * session_destructor() releases it with pjsip_dlg_dec_session(), and PJPROJECT destroys
+	 * a dialog only once both its session count and its transaction count reach zero - and
+	 * the BYE transaction stays registered on the dialog until Timer K destroys it.
 	 */
-	if (tsx->method.id != PJSIP_BYE_METHOD && session_end_if_disconnected(id, inv)) {
+	if ((tsx->method.id != PJSIP_BYE_METHOD || tsx->state >= PJSIP_TSX_STATE_COMPLETED)
+		&& session_end_if_disconnected(id, inv)) {
 		SCOPE_EXIT_RTN("Disconnected\n");
 	}
 
