@@ -311,7 +311,7 @@ ASTPJ_LIB:=libasteriskpj.dylib
 # Darwin-specific: use -force_load to include all symbols from static archives
 # This is equivalent to GNU ld's --whole-archive
 PJPROJECT_SRCDIR := $(ASTTOPDIR)/third-party/pjproject/source
-PJ_TARGET := aarch64-apple-darwin25.2.0
+PJ_TARGET = $(shell sed -n 's/^export TARGET_NAME := //p' $(PJPROJECT_SRCDIR)/build.mak)
 PJPROJECT_DARWIN_LIBS := \
 -force_load $(PJPROJECT_SRCDIR)/pjsip/lib/libpjsip-ua-$(PJ_TARGET).a \
 -force_load $(PJPROJECT_SRCDIR)/pjsip/lib/libpjsip-simple-$(PJ_TARGET).a \
